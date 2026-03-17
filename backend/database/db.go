@@ -94,6 +94,9 @@ func ensureSchema(db *gorm.DB) {
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT ''",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_balance INTEGER DEFAULT 24",
         "ALTER TABLE leaves ADD COLUMN IF NOT EXISTS manager_comment TEXT DEFAULT ''",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON employees TO leave_admin",
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON leaves TO leave_admin",
+        "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO leave_admin",
     }
 
     for _, stmt := range statements {

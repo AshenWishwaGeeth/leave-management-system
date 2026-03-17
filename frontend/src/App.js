@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppBar, Box, Button, Card, CardContent, Chip, Container, Grid, Stack, Tab, Tabs, Toolbar, Typography } from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, AppBar, Box, Button, Card, CardContent, Chip, Container, Grid, Stack, Tab, Tabs, Toolbar, Typography } from '@mui/material';
 import { clearSession, getDashboardSummary, getMe, getStoredUser, hasSession } from './services/api';
 import LoginPage from './components/LoginPage';
 import EmployeeManagement from './components/EmployeeManagement';
@@ -9,22 +9,11 @@ import LeaveHistory from './components/LeaveHistory';
 function App() {
   const [user, setUser] = useState(getStoredUser());
   const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard');
 
   const role = user?.role?.toLowerCase() || 'employee';
   const canManageEmployees = role === 'manager';
-
-  const refreshSummary = useCallback(async () => {
-    if (!user) {
-      return;
-    }
-    try {
-      const res = await getDashboardSummary();
-      setSummary(res.data);
-    } catch (_) {
-      setSummary(null);
-    }
-  }, [user]);
 
   const tabs = useMemo(() => {
     const base = [{ key: 'dashboard', label: 'Dashboard' }, { key: 'history', label: 'Leave Status / History' }];
@@ -54,8 +43,23 @@ function App() {
     if (!user || activeTab !== 'dashboard') {
       return;
     }
-    refreshSummary();
-  }, [user, activeTab, refreshSummary]);
+    getDashboardSummary()
+      .then((res) => { setSummary(res.data); setSummaryError(''); })
+      .catch((err) => {
+        setSummary(null);
+        setSummaryError(err?.response?.data?.error || 'Failed to load dashboard data. Please try again.');
+      });
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (!user || role !== 'employee' || activeTab !== 'dashboard') {
+      return;
+    }
+
+    getMe()
+      .then((res) => setUser(res.data))
+      .catch(() => {});
+  }, [user?.id, role, activeTab]);
 
   if (!user) {
     return <LoginPage onLogin={setUser} />;
@@ -100,6 +104,11 @@ function App() {
 
         {activeTab === 'dashboard' && (
           <Grid container spacing={2}>
+            {summaryError && (
+              <Grid item xs={12}>
+                <Alert severity="error" onClose={() => setSummaryError('')}>{summaryError}</Alert>
+              </Grid>
+            )}
             {!canManageEmployees && (
               <Grid item xs={12} sm={6} md={3}>
                 <Card sx={{ borderRadius: 3 }}>
@@ -118,14 +127,7 @@ function App() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ borderRadius: 3 }}>
-                <CardContent>
-                  <Typography variant="body2" color="text.secondary">Leave History</Typography>
-                  <Typography variant="h4" sx={{ mt: 1, fontWeight: 700 }}>{(summary?.approved_requests ?? 0) + (summary?.rejected_requests ?? 0)}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+            
             {canManageEmployees && (
               <Grid item xs={12} sm={6} md={3}>
                 <Card sx={{ borderRadius: 3 }}>
@@ -296,9 +298,9 @@ function App() {
           </Grid>
         )}
 
-        {activeTab === 'request' && role === 'employee' && <LeaveRequestPanel user={user} onLeaveSubmitted={refreshSummary} />}
+        {activeTab === 'request' && role === 'employee' && <LeaveRequestPanel user={user} />}
 
-        {activeTab === 'approvals' && canManageEmployees && <LeaveHistory canApprove onLeaveUpdated={refreshSummary} />}
+        {activeTab === 'approvals' && canManageEmployees && <LeaveHistory canApprove />}
 
         {activeTab === 'history' && <LeaveHistory canApprove={false} />}
 

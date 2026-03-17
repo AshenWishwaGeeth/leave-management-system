@@ -11,6 +11,15 @@ import (
     "net/http"
 )
 
+func leaveDaysInclusive(start, end time.Time) int {
+    startDate := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+    endDate := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
+    if endDate.Before(startDate) {
+        return 0
+    }
+    return int(endDate.Sub(startDate).Hours()/24) + 1
+}
+
 func RequestLeave(c *gin.Context) {
     var leave models.Leave
     if err := c.ShouldBindJSON(&leave); err != nil {
@@ -103,10 +112,62 @@ func UpdateLeaveStatus(c *gin.Context) {
         return
     }
 
-    leave.Status = input.Status
-    leave.ManagerComment = strings.TrimSpace(input.ManagerComment)
-    if err := database.DB.Save(&leave).Error; handleDBError(c, err) {
+    oldStatus := strings.ToLower(strings.TrimSpace(leave.Status))
+    newStatus := strings.ToLower(strings.TrimSpace(input.Status))
+
+    tx := database.DB.Begin()
+    if tx.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
         return
     }
+
+    if oldStatus != "approved" && newStatus == "approved" {
+        var employee models.Employee
+        if err := tx.First(&employee, leave.EmployeeID).Error; err != nil {
+            tx.Rollback()
+            c.JSON(http.StatusNotFound, gin.H{"error": "employee not found"})
+            return
+        }
+
+        days := leaveDaysInclusive(leave.StartDate, leave.EndDate)
+        if days <= 0 {
+            tx.Rollback()
+            c.JSON(http.StatusBadRequest, gin.H{"error": "invalid leave date range"})
+            return
+        }
+
+        if employee.LeaveBalance < days {
+            tx.Rollback()
+            c.JSON(http.StatusBadRequest, gin.H{"error": "insufficient leave balance"})
+            return
+        }
+
+        employee.LeaveBalance -= days
+        if err := tx.Model(&employee).Update("leave_balance", employee.LeaveBalance).Error; err != nil {
+            tx.Rollback()
+            if handleDBError(c, err) {
+                return
+            }
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update leave balance"})
+            return
+        }
+    }
+
+    leave.Status = input.Status
+    leave.ManagerComment = strings.TrimSpace(input.ManagerComment)
+    if err := tx.Save(&leave).Error; err != nil {
+        tx.Rollback()
+        if handleDBError(c, err) {
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update leave status"})
+        return
+    }
+
+    if err := tx.Commit().Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit status update"})
+        return
+    }
+
     c.JSON(http.StatusOK, leave)
 }

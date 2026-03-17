@@ -14,8 +14,7 @@ func handleDBError(c *gin.Context, err error) bool {
     errText := strings.ToLower(err.Error())
     if strings.Contains(errText, "sqlstate 42501") || strings.Contains(errText, "permission denied") {
         c.JSON(403, gin.H{
-            "error": "database permission denied. Grant SELECT/INSERT/UPDATE/DELETE on employees and leaves to your DB user",
-            "details": err.Error(),
+            "error": "Insufficient permissions to complete this operation. Please ask your system administrator to run: GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO leave_admin;",
         })
         return true
     }
