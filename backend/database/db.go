@@ -7,6 +7,7 @@ import (
     "strings"
 
     "github.com/joho/godotenv"
+    "golang.org/x/crypto/bcrypt"
     "gorm.io/driver/postgres"
     "gorm.io/gorm"
     "leave-management-system/models"
@@ -60,6 +61,11 @@ func Connect() {
     }
 
     DB = db
+
+    if strings.ToLower(getEnv("SCHEMA_SYNC", "false")) == "true" {
+        ensureSchema(db)
+    }
+    seedUsers(db)
 }
 
 // helper to read env variables with fallback
@@ -79,4 +85,59 @@ func isSchemaPermissionError(err error) bool {
 func isRelationAlreadyExistsError(err error) bool {
     errText := strings.ToLower(err.Error())
     return strings.Contains(errText, "already exists") || strings.Contains(errText, "sqlstate 42p07")
+}
+
+func ensureSchema(db *gorm.DB) {
+    statements := []string{
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS department TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active'",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_balance INTEGER DEFAULT 24",
+        "ALTER TABLE leaves ADD COLUMN IF NOT EXISTS manager_comment TEXT DEFAULT ''",
+    }
+
+    for _, stmt := range statements {
+        if err := db.Exec(stmt).Error; err != nil {
+            log.Printf("[warn] schema update skipped: %v", err)
+        }
+    }
+}
+
+func seedUsers(db *gorm.DB) {
+    users := []struct {
+        Name     string
+        Email    string
+        Role     string
+        Password string
+    }{
+        {Name: "Manager User", Email: getEnv("MANAGER_EMAIL", "manager@leave.local"), Role: "manager", Password: getEnv("MANAGER_PASSWORD", "manager123")},
+        {Name: "Employee User", Email: getEnv("EMPLOYEE_EMAIL", "employee@leave.local"), Role: "employee", Password: getEnv("EMPLOYEE_PASSWORD", "employee123")},
+    }
+
+    for _, user := range users {
+        var existing models.Employee
+        if err := db.Where("LOWER(email) = ?", strings.ToLower(user.Email)).First(&existing).Error; err == nil {
+            continue
+        }
+
+        hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+        if err != nil {
+            log.Printf("[warn] failed to hash seed user password for %s", user.Email)
+            continue
+        }
+
+        newUser := models.Employee{
+            Name:         user.Name,
+            Email:        user.Email,
+            Department:   "General",
+            Role:         user.Role,
+            Status:       "active",
+            PasswordHash: string(hash),
+            LeaveBalance: 24,
+        }
+
+        if err := db.Create(&newUser).Error; err != nil {
+            log.Printf("[warn] failed to seed user %s: %v", user.Email, err)
+        }
+    }
 }
