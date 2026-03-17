@@ -1,4 +1,25 @@
 import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  FormControl,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { createEmployee, deleteEmployee, getEmployees, updateEmployee } from '../services/api';
 
 const DEFAULT_EMPLOYEE = {
@@ -17,13 +38,15 @@ export default function EmployeeManagement({ canManage }) {
   const [filters, setFilters] = useState({ search: '', role: '', status: '' });
   const [form, setForm] = useState(DEFAULT_EMPLOYEE);
   const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const load = async () => {
     try {
       const res = await getEmployees(filters);
       setItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      alert(apiErrorMessage(err));
+      setError(apiErrorMessage(err));
       setItems([]);
     }
   };
@@ -34,17 +57,21 @@ export default function EmployeeManagement({ canManage }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
     try {
       if (editingId) {
         await updateEmployee(editingId, form);
+        setSuccess('Employee updated successfully.');
       } else {
         await createEmployee(form);
+        setSuccess('Employee added successfully.');
       }
       setForm(DEFAULT_EMPLOYEE);
       setEditingId(null);
       load();
     } catch (err) {
-      alert(apiErrorMessage(err));
+      setError(apiErrorMessage(err));
     }
   };
 
@@ -61,76 +88,141 @@ export default function EmployeeManagement({ canManage }) {
   };
 
   const remove = async (id) => {
+    setError('');
+    setSuccess('');
     try {
       await deleteEmployee(id);
+      setSuccess('Employee deleted successfully.');
       load();
     } catch (err) {
-      alert(apiErrorMessage(err));
+      setError(apiErrorMessage(err));
     }
   };
 
   return (
-    <section className="card">
-      <h2>Employee Management</h2>
-      <div className="toolbar">
-        <input placeholder="Search name/email" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
-        <select value={filters.role} onChange={(e) => setFilters({ ...filters, role: e.target.value })}>
-          <option value="">All Roles</option>
-          <option value="employee">Employee</option>
-          <option value="manager">Manager</option>
-        </select>
-        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
+    <Card sx={{ borderRadius: 3 }}>
+      <CardContent>
+        <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Employee Management</Typography>
+
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Search"
+              placeholder="Search name or email"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="filter-role-label">Role</InputLabel>
+              <Select
+                labelId="filter-role-label"
+                label="Role"
+                value={filters.role}
+                onChange={(e) => setFilters({ ...filters, role: e.target.value })}
+              >
+                <MenuItem value="">All Roles</MenuItem>
+                <MenuItem value="employee">Employee</MenuItem>
+                <MenuItem value="manager">Manager</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel id="filter-status-label">Status</InputLabel>
+              <Select
+                labelId="filter-status-label"
+                label="Status"
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              >
+                <MenuItem value="">All Status</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="inactive">Inactive</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
       {canManage && (
-        <form className="form-grid" onSubmit={submit}>
-          <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-          <input placeholder="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-          <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="employee">Employee</option>
-            <option value="manager">Manager</option>
-          </select>
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <input placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <button type="submit">{editingId ? 'Update Employee' : 'Add Employee'}</button>
-        </form>
+        <Box component="form" onSubmit={submit} sx={{ mb: 3 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth label="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth label="Department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel id="form-role-label">Role</InputLabel>
+                <Select labelId="form-role-label" label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                  <MenuItem value="employee">Employee</MenuItem>
+                  <MenuItem value="manager">Manager</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel id="form-status-label">Status</InputLabel>
+                <Select labelId="form-status-label" label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField fullWidth label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            </Grid>
+            <Grid item xs={12}>
+              <Button type="submit" variant="contained">{editingId ? 'Update Employee' : 'Add Employee'}</Button>
+            </Grid>
+          </Grid>
+        </Box>
       )}
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th><th>Email</th><th>Department</th><th>Role</th><th>Status</th>
-              {canManage && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Department</TableCell>
+              <TableCell>Role</TableCell>
+              <TableCell>Status</TableCell>
+              {canManage && <TableCell>Actions</TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {items.map((emp) => (
-              <tr key={emp.id}>
-                <td>{emp.name}</td>
-                <td>{emp.email}</td>
-                <td>{emp.department}</td>
-                <td>{emp.role}</td>
-                <td>{emp.status}</td>
+              <TableRow key={emp.id} hover>
+                <TableCell>{emp.name}</TableCell>
+                <TableCell>{emp.email}</TableCell>
+                <TableCell>{emp.department}</TableCell>
+                <TableCell>{emp.role}</TableCell>
+                <TableCell>{emp.status}</TableCell>
                 {canManage && (
-                  <td>
-                    <button type="button" onClick={() => edit(emp)}>Edit</button>
-                    <button type="button" className="danger" onClick={() => remove(emp.id)}>Delete</button>
-                  </td>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      <Button size="small" variant="outlined" onClick={() => edit(emp)}>Edit</Button>
+                      <Button size="small" color="error" variant="contained" onClick={() => remove(emp.id)}>Delete</Button>
+                    </Stack>
+                  </TableCell>
                 )}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+          </TableBody>
+        </Table>
+      </TableContainer>
+      </CardContent>
+    </Card>
   );
 }
