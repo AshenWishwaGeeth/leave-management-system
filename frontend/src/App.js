@@ -51,16 +51,6 @@ function App() {
       });
   }, [user, activeTab]);
 
-  useEffect(() => {
-    if (!user || role !== 'employee' || activeTab !== 'dashboard') {
-      return;
-    }
-
-    getMe()
-      .then((res) => setUser(res.data))
-      .catch(() => {});
-  }, [user?.id, role, activeTab]);
-
   if (!user) {
     return <LoginPage onLogin={setUser} />;
   }
